@@ -1,0 +1,45 @@
+{
+  "name": "financemate-backend",
+  "version": "1.0.0",
+  "description": "finance management backend with AI-driven features",
+  "homepage": "https://github.com/nuwan-dharmarathna/financeMate-backend#readme",
+  "bugs": {
+    "url": "https://github.com/nuwan-dharmarathna/financeMate-backend/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nuwan-dharmarathna/financeMate-backend.git"
+  },
+  "license": "ISC",
+  "author": "Y3S1-WE-39",
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "firebase": "^11.4.0",
+    "firebase-admin": "^13.2.0",
+    "helmet": "^8.0.0",
+    "hpp": "^0.2.3",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.12.1",
+    "morgan": "^1.10.0",
+    "nodemon": "^3.1.9",
+    "perfect-express-sanitizer": "^2.0.2",
+    "slugify": "^1.6.6"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.1",
+    "eslint-config-airbnb": "^19.0.4",
+    "eslint-config-prettier": "^10.1.1",
+    "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-node": "^11.1.0",
+    "prettier": "^3.5.3"
+  }
+}
