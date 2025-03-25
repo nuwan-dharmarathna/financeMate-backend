@@ -7,7 +7,20 @@ const hpp = require('hpp');
 const cookieParser = require('cookie-parser');
 
 const AppError = require('./utils/appError');
-const globalErrorHandler = require('./controller/errorController');
+const globalErrorHandler = require('./controllers/errorController');
+
+// Route files
+const userRoutes = require('./routes/userRoutes');
+
+const admin = require('firebase-admin');
+// Decode Base64 string
+const firebaseCredentials = JSON.parse(
+  Buffer.from(process.env.FIREBASE_CREDENTIALS, 'base64').toString(),
+);
+
+admin.initializeApp({
+  credential: admin.credential.cert(firebaseCredentials),
+});
 
 const app = express();
 
@@ -53,6 +66,8 @@ app.use(express.static(`${__dirname}/public`));
 app.get('/', (req, res) => {
   res.send('Welcome to the FinanceMate Backend API!');
 });
+
+app.use('/api/v1/users', userRoutes);
 
 app.all('*', (req, res, next) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));
