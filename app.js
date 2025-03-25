@@ -1,0 +1,79 @@
+const express = require('express');
+const morgan = require('morgan');
+const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
+const sanitize = require('perfect-express-sanitizer');
+const hpp = require('hpp');
+const cookieParser = require('cookie-parser');
+
+const AppError = require('./utils/appError');
+const globalErrorHandler = require('./controllers/errorController');
+
+// Route files
+const userRoutes = require('./routes/userRoutes');
+
+const admin = require('firebase-admin');
+// Decode Base64 string
+const firebaseCredentials = JSON.parse(
+  Buffer.from(process.env.FIREBASE_CREDENTIALS, 'base64').toString(),
+);
+
+admin.initializeApp({
+  credential: admin.credential.cert(firebaseCredentials),
+});
+
+const app = express();
+
+// Set security HTTP headers
+app.use(helmet());
+
+// Development logging
+if (process.env.NODE_ENV === 'development') {
+  app.use(morgan('dev'));
+}
+
+// Limit requests from same API
+const limiter = rateLimit({
+  max: 100,
+  windowMs: 60 * 60 * 1000,
+  message: 'Too many requests from this IP, please try again in an hour!',
+});
+app.use('/api', limiter);
+
+// Body parser, reading data from body into req.body
+app.use(express.json({ limit: '100kb' }));
+
+app.use(express.urlencoded({ extended: true }));
+
+app.use(cookieParser());
+
+// Data sanitization against SQL query injection
+app.use(
+  sanitize.clean({
+    xss: true,
+    noSql: true,
+    sql: true,
+  }),
+);
+
+// prevent parameter pollution
+app.use(hpp());
+
+// serving static files
+app.use(express.static(`${__dirname}/public`));
+
+// routes
+app.get('/', (req, res) => {
+  res.send('Welcome to the FinanceMate Backend API!');
+});
+
+app.use('/api/v1/users', userRoutes);
+
+app.all('*', (req, res, next) => {
+  next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));
+});
+
+// global error handling
+app.use(globalErrorHandler);
+
+module.exports = app;
