@@ -11,6 +11,7 @@ const globalErrorHandler = require('./controllers/errorController');
 
 // Route files
 const userRoutes = require('./routes/userRoutes');
+const accountRoutes = require('./routes/accountRoutes');
 
 const admin = require('firebase-admin');
 // Decode Base64 string
@@ -68,6 +69,7 @@ app.get('/', (req, res) => {
 });
 
 app.use('/api/v1/users', userRoutes);
+app.use('/api/v1/accounts', accountRoutes);
 
 app.all('*', (req, res, next) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));
