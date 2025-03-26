@@ -1,6 +1,6 @@
 const express = require('express');
 
-const accountController = require('../controllers/accountController');
+const accountController = require('../controllers/accountContraller');
 const authController = require('../controllers/authController');
 
 const router = express.Router();
@@ -15,7 +15,7 @@ router
 router
   .route('/:id')
   .get(accountController.getAccount)
-  .patch(accountController.updateAccount)
-  .delete(accountController.deleteAccount);
+  .patch(accountController.updateAccount);
+// .delete(accountController.deleteAccount);
 
 module.exports = router;
