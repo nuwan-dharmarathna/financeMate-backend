@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const Budget = require('../models/budgetModel');
 
-//const Transaction = require('../models/transactionModel');
+const Transaction = require('../models/transactionModel');
 
 exports.trackBudgetLimit = async function (user, transactionAmount) {
   console.log('Tracking budget limit');
@@ -37,8 +37,6 @@ exports.trackBudgetLimit = async function (user, transactionAmount) {
 
     const spentAmount = totalSpent.length > 0 ? totalSpent[0].totalAmount : 0;
     const newTotal = spentAmount + transactionAmount;
-
-
 
     if (newTotal > budget.limit) {
       console.log('Budget limit exceeded');
