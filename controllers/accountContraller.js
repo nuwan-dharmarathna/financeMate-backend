@@ -1,5 +1,5 @@
 const Account = require('../models/accountModel');
-// const Transaction = require('../models/transactionModel');
+const Transaction = require('../models/transactionModel');
 
 const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');
@@ -118,37 +118,37 @@ exports.updateAccount = catchAsync(async (req, res, next) => {
   });
 });
 
-// exports.deleteAccount = catchAsync(async (req, res, next) => {
-//   // Check is there any transaction exist with this account
-//   const transactions = await Transaction.find({
-//     account: req.params.id,
-//   });
+exports.deleteAccount = catchAsync(async (req, res, next) => {
+  // Check is there any transaction exist with this account
+  const transactions = await Transaction.find({
+    account: req.params.id,
+  });
 
-//   if (transactions.length > 0) {
-//     return next(
-//       new AppError(
-//         'This account has transactions. Please delete them before deleting the account',
-//         400,
-//       ),
-//     );
-//   }
+  if (transactions.length > 0) {
+    return next(
+      new AppError(
+        'This account has transactions. Please delete them before deleting the account',
+        400,
+      ),
+    );
+  }
 
-//   await Account.findByIdAndDelete(req.params.id);
+  await Account.findByIdAndDelete(req.params.id);
 
-//   // Check no of accounts exist
-//   const accounts = await Account.find({
-//     user: req.user.id,
-//   });
+  // Check no of accounts exist
+  const accounts = await Account.find({
+    user: req.user.id,
+  });
 
-//   if (accounts.length === 1) {
-//     // Update the default account
-//     await Account.findByIdAndUpdate(accounts[0].id, {
-//       isDefault: true,
-//     });
-//   }
+  if (accounts.length === 1) {
+    // Update the default account
+    await Account.findByIdAndUpdate(accounts[0].id, {
+      isDefault: true,
+    });
+  }
 
-//   res.status(204).json({
-//     status: 'success',
-//     data: null,
-//   });
-// });
+  res.status(204).json({
+    status: 'success',
+    data: null,
+  });
+});
