@@ -1,5 +1,6 @@
 const express = require('express');
 const morgan = require('morgan');
+const cron = require('node-cron');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const sanitize = require('perfect-express-sanitizer');
@@ -8,6 +9,10 @@ const cookieParser = require('cookie-parser');
 
 const AppError = require('./utils/appError');
 const globalErrorHandler = require('./controllers/errorController');
+const {
+  processPendingTransactions,
+  processRecurringTransactions,
+} = require('./utils/transactionsHandler');
 
 // Route files
 const userRoutes = require('./routes/userRoutes');
@@ -25,6 +30,17 @@ admin.initializeApp({
 });
 
 const app = express();
+
+// Start processing transactions
+cron.schedule('* * * * *', async () => {
+  console.log('Running cron job to process transactions...');
+  try {
+    await processPendingTransactions();
+    await processRecurringTransactions();
+  } catch (err) {
+    console.error('❌ Error in processPendingTransactions:', err);
+  }
+});
 
 // Set security HTTP headers
 app.use(helmet());
