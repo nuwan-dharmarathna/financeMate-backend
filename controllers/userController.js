@@ -13,6 +13,15 @@ const filterObj = (obj, ...allowedFields) => {
   return newObj;
 };
 
+exports.getMe = catchAsync(async (req, res, next) => {
+  res.status(200).json({
+    status: 'success',
+    data: {
+      user: req.user,
+    },
+  });
+});
+
 exports.updateMe = catchAsync(async (req, res, next) => {
   // 1. create error if user POSTs password data
   if (req.body.password || req.body.passwordConfirm) {

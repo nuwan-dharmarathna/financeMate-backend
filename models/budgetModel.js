@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const User = require('./userModel');
+const Category = require('./categoryModel');
 
 const budgetSchema = new mongoose.Schema(
   {
@@ -8,11 +9,19 @@ const budgetSchema = new mongoose.Schema(
       type: Number,
       required: [true, 'A budget must have an limit'],
     },
+    remainingLimit: {
+      type: Number,
+      min: [0, 'Balance must be greater than 0'],
+    },
+    category: {
+      type: mongoose.Schema.ObjectId,
+      ref: 'Category',
+      required: [true, 'A budget must have a category'],
+    },
     user: {
       type: mongoose.Schema.ObjectId,
       ref: 'User',
       required: [true, 'Account must belong to a user'],
-      unique: true,
     },
     createdAt: {
       type: Date,
@@ -30,8 +39,8 @@ const budgetSchema = new mongoose.Schema(
 
 budgetSchema.pre(/^find/, function (next) {
   this.populate({
-    path: 'user',
-    select: 'firebaseUID',
+    path: 'category',
+    select: 'slug',
   });
   next();
 });

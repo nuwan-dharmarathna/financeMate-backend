@@ -2,8 +2,6 @@ const Goal = require('../models/goalModel');
 const Account = require('../models/accountModel');
 const Transaction = require('../models/transactionModel');
 
-const { trackBudgetLimit } = require('../utils/budgetHandler');
-
 const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');
 
@@ -74,17 +72,10 @@ exports.createGoal = catchAsync(async (req, res, next) => {
   }
 
   // Check if the account has sufficient balance
-
   if (accountDoc.balance < contributionAmount) {
     return next(
       new AppError('Insufficient balance in the selected account', 400),
     );
-  }
-
-  const budgetLimit = await trackBudgetLimit(req.user.id, contributionAmount);
-
-  if (budgetLimit) {
-    return next(new AppError('Budget limit exceeded', 400));
   }
 
   accountDoc.balance -= contributionAmount;
