@@ -28,6 +28,10 @@ const accountSchema = new mongoose.Schema(
       required: [true, 'A account must have a start balance'],
       min: [0, 'Balance must be greater than 0'],
     },
+    remainingBalance: {
+      type: Number,
+      min: [0, 'Balance must be greater than 0'],
+    },
     isDefault: {
       type: Boolean,
       default: false,

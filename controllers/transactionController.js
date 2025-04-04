@@ -1,5 +1,6 @@
 const Transaction = require('../models/transactionModel');
 const Account = require('../models/accountModel');
+const Category = require('../models/categoryModel');
 
 const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');
@@ -7,6 +8,7 @@ const AppError = require('../utils/appError');
 const ApiFeatures = require('../utils/apiFeatures');
 
 const { trackBudgetLimit } = require('../utils/budgetHandler');
+const Budget = require('../models/budgetModel');
 
 exports.getAllTransactions = catchAsync(async (req, res, next) => {
   // Base filter to ensure only logged-in user's transactions are fetched
@@ -77,6 +79,15 @@ exports.createTransaction = catchAsync(async (req, res, next) => {
     }
   }
 
+  //  Get the category
+  const categoryDoc = await Category.findOne({
+    _id: category,
+    user: req.user.id,
+  });
+  if (!categoryDoc) {
+    return next(new AppError('Category not found or unauthorized', 404));
+  }
+
   // Date handling
   let transactionDate = date ? new Date(date) : new Date();
   transactionDate.setHours(0, 0, 0, 0);
@@ -94,17 +105,26 @@ exports.createTransaction = catchAsync(async (req, res, next) => {
   //  Handle transaction type
   if (shouldDeductAmount === true) {
     if (transactionType === 'expense') {
-      if (accountDoc.balance < amount) {
+      if (accountDoc.remainingBalance < amount) {
         return next(new AppError('Insufficient balance', 400));
       }
-      // check the budget limit
-      const budgetLimit = await trackBudgetLimit(req.user.id, amount);
-      if (budgetLimit.exceeded) {
-        return next(new AppError(budgetLimit.alert, 400));
+      // check the budget limit for the category
+      if (categoryDoc.onTrack === true) {
+        const budgetLimit = await trackBudgetLimit(
+          req.user.id,
+          categoryDoc._id,
+          amount,
+        );
+
+        if (budgetLimit.exceeded === false && budgetLimit.alert === 'success') {
+          // reduce the account remaining balance
+          accountDoc.remainingBalance -= amount;
+        } else {
+          return next(new AppError(budgetLimit.alert, 400));
+        }
       }
-      accountDoc.balance -= amount;
     } else if (transactionType === 'income') {
-      accountDoc.balance += amount;
+      accountDoc.remainingBalance += amount;
     }
   }
 
@@ -129,6 +149,10 @@ exports.createTransaction = catchAsync(async (req, res, next) => {
     }
   }
 
+  // Save the account
+  await accountDoc.save();
+
+  // Create the transaction
   const newTransaction = await Transaction.create({
     user: req.user.id,
     transactionType,
@@ -142,9 +166,6 @@ exports.createTransaction = catchAsync(async (req, res, next) => {
     nextRecurringDate,
     transactionStatus,
   });
-
-  // Save the account
-  await accountDoc.save();
 
   res.status(201).json({
     status: 'success',
@@ -166,23 +187,47 @@ exports.updateTransaction = catchAsync(async (req, res, next) => {
     recurringInterval,
   } = req.body;
 
-  // check the date field include in the body
-  if (date) {
-    return next(new AppError('You cannot edit date field', 400));
-  }
-
   // Fetch existing transaction
   const existingTransaction = await Transaction.findById(req.params.id);
+
   if (!existingTransaction) {
     return next(new AppError('No transaction found with that ID', 404));
   }
 
+  // Check if date is being changed
+  if (date && date !== existingTransaction.date) {
+    return next(new AppError('You cannot edit the date field', 400));
+  }
+
+  // Validate category if changed
+  let categoryDoc = null;
+  if (category && category !== String(existingTransaction.category)) {
+    categoryDoc = await Category.findOne({
+      _id: category,
+      user: req.user.id,
+    });
+
+    if (!categoryDoc) {
+      return next(new AppError('New category not found or unauthorized', 404));
+    }
+
+    // Check if category type matches transaction type
+    if (transactionType && categoryDoc.type !== transactionType) {
+      return next(
+        new AppError(`Category must be of type ${transactionType}`, 400),
+      );
+    }
+  } else {
+    categoryDoc = await Category.findById(existingTransaction.category);
+  }
+
+  // Fetch existing account
   const existingAccount = await Account.findById(existingTransaction.account);
   if (!existingAccount) {
     return next(new AppError('No account found with that ID', 404));
   }
 
-  // Check if the account is changed
+  // Check if new account exists if changed
   let newAccount = null;
   if (account && account !== String(existingTransaction.account)) {
     newAccount = await Account.findOne({ _id: account, user: req.user.id });
@@ -191,63 +236,74 @@ exports.updateTransaction = catchAsync(async (req, res, next) => {
     }
   }
 
-  // Revert old transaction amount
+  // ========== REVERT OLD TRANSACTION EFFECTS ==========
+  // Revert from old account
   if (existingTransaction.transactionType === 'expense') {
-    existingAccount.balance += existingTransaction.amount;
+    existingAccount.remainingBalance += existingTransaction.amount;
   } else {
-    // check the budget limit
-    const budgetLimit = await trackBudgetLimit(
-      req.user.id,
-      existingTransaction.amount,
+    existingAccount.remainingBalance -= existingTransaction.amount;
+  }
+
+  // Revert from old category budget if it was an expense
+  if (existingTransaction.transactionType === 'expense') {
+    const existingCategory = await Category.findById(
+      existingTransaction.category,
     );
-    if (budgetLimit.exceeded) {
-      budgetLimit.alert = 'Cannot revert the transaction. ' + budgetLimit.alert;
-      return next(new AppError(budgetLimit.alert, 400));
+    if (existingCategory && existingCategory.onTrack) {
+      const budget = await Budget.findOne({
+        user: req.user.id,
+        category: existingTransaction.category,
+      });
+      if (budget) {
+        budget.remainingLimit += existingTransaction.amount;
+        await budget.save();
+      }
     }
-    existingAccount.balance -= existingTransaction.amount;
   }
 
-  console.log('Old account balance:', existingAccount.balance);
+  // ========== APPLY NEW TRANSACTION EFFECTS ==========
+  // Determine the target account (new or existing)
+  const targetAccount = newAccount || existingAccount;
 
-  // If the account is changing, apply the transaction to the new account
-  if (newAccount) {
-    console.log('Account changed');
-    if (transactionType === 'expense') {
-      if (newAccount.balance < amount) {
-        return next(new AppError('Insufficient balance in new account', 400));
-      }
-      // check the budget limit
-      const budgetLimit = await trackBudgetLimit(req.user.id, amount);
-      if (budgetLimit.exceeded) {
-        budgetLimit.alert =
-          'Cannot apply the transaction. ' + budgetLimit.alert;
-        return next(new AppError(budgetLimit.alert, 400));
-      }
-      newAccount.balance -= amount;
-    } else {
-      newAccount.balance += amount;
+  // Check if transaction type is being changed
+  const finalTransactionType =
+    transactionType || existingTransaction.transactionType;
+  const finalAmount = amount || existingTransaction.amount;
+
+  // Validate account balance for expenses
+  if (finalTransactionType === 'expense') {
+    if (targetAccount.remainingBalance < finalAmount) {
+      return next(new AppError('Insufficient balance in account', 400));
     }
+  }
+
+  // Apply to account
+  if (finalTransactionType === 'expense') {
+    targetAccount.remainingBalance -= finalAmount;
   } else {
-    console.log('Account not changed');
-    // Apply new transaction effect
-    if (transactionType === 'expense') {
-      if (existingAccount.balance < amount) {
-        return next(new AppError('Insufficient balance', 400));
-      }
-      // check the budget limit
-      const budgetLimit = await trackBudgetLimit(req.user.id, amount);
-      if (budgetLimit.exceeded) {
-        budgetLimit.alert =
-          'Cannot apply the transaction. ' + budgetLimit.alert;
-        return next(new AppError(budgetLimit.alert, 400));
-      }
-      existingAccount.balance -= amount;
-    } else {
-      existingAccount.balance += amount;
-    }
+    targetAccount.remainingBalance += finalAmount;
   }
 
-  console.log('New account balance:', existingAccount.balance);
+  // Apply to category budget if it's an expense
+  if (finalTransactionType === 'expense') {
+    const finalCategory = category || existingTransaction.category;
+    const finalCategoryDoc =
+      categoryDoc || (await Category.findById(finalCategory));
+
+    if (finalCategoryDoc.onTrack) {
+      const budgetLimit = await trackBudgetLimit(
+        req.user.id,
+        finalCategory,
+        finalAmount,
+      );
+
+      if (
+        !(budgetLimit.exceeded === false && budgetLimit.alert === 'success')
+      ) {
+        return next(new AppError(budgetLimit.alert, 400));
+      }
+    }
+  }
 
   // Handle recurring transactions
   if (isRecurring !== undefined) {
@@ -267,32 +323,34 @@ exports.updateTransaction = catchAsync(async (req, res, next) => {
         case 'yearly':
           nextRecurringDate.setFullYear(nextRecurringDate.getFullYear() + 1);
           break;
+        default:
+          return next(new AppError('Invalid recurring interval', 400));
       }
       existingTransaction.recurringInterval = recurringInterval;
       existingTransaction.nextRecurringDate = nextRecurringDate;
     } else {
+      existingTransaction.recurringInterval = undefined;
       existingTransaction.nextRecurringDate = null;
     }
   }
 
   // Update transaction details
   Object.assign(existingTransaction, {
-    transactionType: transactionType,
-    amount: amount,
-    account: account || existingTransaction.account,
+    transactionType: finalTransactionType,
+    amount: finalAmount,
+    account: newAccount ? newAccount._id : existingTransaction.account,
     description: description || existingTransaction.description,
     category: category || existingTransaction.category,
     lastProcessed: new Date(),
     updatedAt: new Date(),
   });
 
-  await existingTransaction.save();
-
-  // If the account is changed, save the new account
-  await newAccount.save();
-
-  // Save the account
+  // Save all changes
   await existingAccount.save();
+  await existingTransaction.save();
+  if (newAccount) {
+    await newAccount.save();
+  }
 
   res.status(200).json({
     status: 'success',
@@ -318,9 +376,28 @@ exports.deleteTransaction = catchAsync(async (req, res, next) => {
     account.balance -= transaction.amount;
   }
 
+  // Revert the budget limit if applicable
+  let budget = null;
+  if (transaction.transactionType === 'expense') {
+    const existingCategory = await Category.findById(transaction.category);
+    if (existingCategory && existingCategory.onTrack) {
+      budget = await Budget.findOne({
+        user: req.user.id,
+        category: transaction.category,
+      });
+      if (budget) {
+        budget.remainingLimit += transaction.amount;
+      }
+    }
+  }
+
   await Transaction.findByIdAndDelete(req.params.id);
 
   await account.save();
+
+  if (budget) {
+    await budget.save();
+  }
 
   res.status(204).json({
     status: 'success',

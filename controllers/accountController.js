@@ -63,12 +63,14 @@ exports.createAccount = catchAsync(async (req, res, next) => {
 
     newAccount = await Account.create({
       ...req.body,
+      remainingBalance: req.body.balance,
       user: req.user.id,
     });
   } else {
     newAccount = await Account.create({
       ...req.body,
       user: req.user.id,
+      remainingBalance: req.body.balance,
       isDefault: true,
     });
   }
@@ -82,6 +84,13 @@ exports.createAccount = catchAsync(async (req, res, next) => {
 });
 
 exports.updateAccount = catchAsync(async (req, res, next) => {
+  // fetch the account
+  const account = await Account.findById(req.params.id);
+
+  if (!account) {
+    return next(new AppError('No account found with that ID', 404));
+  }
+
   // Check isDefault field is present in the request body
   if (req.body.isDefault === true) {
     // Get the default account
@@ -101,14 +110,25 @@ exports.updateAccount = catchAsync(async (req, res, next) => {
     req.body.isDefault = true;
   }
 
-  const account = await Account.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
-    runValidators: true,
+  // check the balance is updated
+  if (req.body.balance !== account.balance) {
+    // update the remaining balance
+    let remainingBalance =
+      account.remainingBalance + (req.body.balance - account.balance);
+
+    if (remainingBalance < 0) {
+      return next(new AppError('Remaining balance cannot be less than 0', 400));
+    }
+
+    req.body.remainingBalance = remainingBalance;
+  }
+
+  // update the account
+  Object.assign(account, {
+    ...req.body,
   });
 
-  if (!account) {
-    return next(new AppError('No account found with that ID', 404));
-  }
+  await account.save();
 
   res.status(200).json({
     status: 'success',

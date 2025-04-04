@@ -85,7 +85,7 @@ exports.signIn = catchAsync(async (req, res, next) => {
 
   const userRecord = await admin.auth().getUserByEmail(email);
 
-  console.log(`userRecord : ${userRecord}`);
+  console.log(`userRecord : ${userRecord.email}`);
 
   if (!userRecord) {
     return next(new AppError('User not found', 404));
@@ -114,28 +114,72 @@ exports.signIn = catchAsync(async (req, res, next) => {
 });
 
 exports.signInWithGoogle = catchAsync(async (req, res, next) => {
-  const result = await signInWithPopup(auth, provider);
-  const firebaseUser = result.user;
+  const { uid } = req.body;
 
-  let user = await User.findOne({ firebaseUID: firebaseUser.uid });
+  console.log(`idToken received: ${uid}`);
 
-  if (!user) {
-    user = new User({
-      firebaseUID: firebaseUser.uid,
-      email: firebaseUser.email,
-      displayName: firebaseUser.displayName,
-      photoURL: firebaseUser.photoURL,
-      provider: 'google',
+  if (!uid) {
+    return res.status(400).json({ message: 'Missing Google ID Token' });
+  }
+
+  try {
+    // ✅ Verify Firebase ID Token
+    // const decodedToken = await admin.auth().verifyIdToken(idToken);
+    // console.log(`Decoded Token:`, decodedToken);
+
+    const userRecord = await admin.auth().getUserByProviderUid(uid);
+
+    // ✅ Check if user exists in database
+    let user = await User.findOne({ firebaseUID: uid });
+
+    if (!user) {
+      user = new User({
+        firebaseUID: uid,
+        email: userRecord.email,
+        displayName: userRecord.email.split('@')[0],
+        provider: 'google',
+      });
+
+      await user.save();
+    }
+
+    const token = signToken(user._id);
+
+    res.cookie('authToken', token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'None',
+      maxAge: 2 * 60 * 60 * 1000, // Expires in 2 hours
     });
 
-    await user.save();
+    return res.status(200).json({
+      status: 'success',
+      token,
+      user,
+    });
+  } catch (error) {
+    console.error('Error verifying ID token:', error.message);
+    return res.status(401).json({
+      status: 'error',
+      message: 'Invalid Google ID Token',
+    });
   }
-  res.status(200).json({ message: 'Login successful', user: result.user });
 });
 
 exports.protect = catchAsync(async (req, res, next) => {
   // 1) check token is there
   const token = req.cookies.authToken;
+
+  // 1) check token is there
+  // let token;
+  // if (
+  //   req.headers.authorization &&
+  //   req.headers.authorization.startsWith('Bearer')
+  // ) {
+  //   token = req.headers.authorization.split(' ')[1];
+  // }
+
+  // console.log(`token : ${token}`);
 
   if (!token) {
     return next(new AppError('You are not logged in!', 401));
