@@ -1,12 +1,6 @@
-const cron = require('node-cron');
-const AppError = require('./appError');
-const catchAsync = require('./catchAsync');
-
 const Goal = require('../models/goalModel');
 const Transaction = require('../models/transactionModel');
 const Account = require('../models/accountModel');
-
-const { trackBudgetLimit } = require('../utils/budgetHandler');
 
 const processPendingGoals = async () => {
   try {
@@ -42,13 +36,6 @@ const processPendingGoals = async () => {
         // process goals
         if (account.balance < amountToReturn) {
           console.log(`Goal ${goal._id} failed: Insufficient balance`);
-          continue;
-        }
-
-        // Track budget limit
-        const budgetLimit = await trackBudgetLimit(goal.user, amountToReturn);
-        if (budgetLimit.exceeded) {
-          console.log(`Budget limit exceeded for user ${goal.user}`);
           continue;
         }
 

@@ -22,7 +22,7 @@ const processPendingTransactions = async () => {
 
       console.log(`Processing transaction ${transaction._id}`);
 
-      // If account doesn't exist,
+      // If account doesn't exist
       if (!account) {
         transaction.transactionStatus = 'failed';
         await transaction.save();
@@ -30,40 +30,41 @@ const processPendingTransactions = async () => {
         continue;
       }
 
-      // process transactions
-      if (transaction.transactionType === 'income') {
-        account.balance += transaction.amount;
-        transaction.transactionStatus = 'completed';
-      } else if (transaction.transactionType === 'expense') {
-        if (account.balance < transaction.amount) {
-          transaction.transactionStatus = 'failed';
-          console.log(
-            `Transaction ${transaction._id} failed: Insufficient balance`,
-          );
-        }
+      // Track budget limit
+      const budgetLimit = await trackBudgetLimit(
+        transaction.user,
+        transaction.category,
+        transaction.amount,
+      );
 
-        // Track budget limit
-        const budgetLimit = await trackBudgetLimit(
-          transaction.user,
-          transaction.amount,
-        );
-        if (budgetLimit.exceeded) {
-          console.log(`Budget limit exceeded for user ${transaction.user}`);
-          transaction.transactionStatus = 'failed';
+      if (budgetLimit.exceeded === false && budgetLimit.alert === 'success') {
+        // Process transactions
+        if (transaction.transactionType === 'income') {
+          account.balance += transaction.amount;
+          transaction.transactionStatus = 'completed';
+        } else if (transaction.transactionType === 'expense') {
+          if (account.balance < transaction.amount) {
+            transaction.transactionStatus = 'failed';
+            console.log(
+              `Transaction ${transaction._id} failed: Insufficient balance`,
+            );
+            await transaction.save();
+            continue; // Skip further processing
+          }
 
-          // save transaction
-          await transaction.save();
-        } else {
-          account.balance -= transaction.amount;
+          account.balance -= transaction.amount; // Deduct only for successful expenses
           transaction.transactionStatus = 'completed';
         }
+      } else {
+        console.log(`Budget limit exceeded for user ${transaction.user}`);
+        transaction.transactionStatus = 'failed';
+        await transaction.save();
+        continue; // Skip further processing
       }
 
-      if (transaction.transactionStatus !== 'failed') {
-        // Save account and transaction
-        await account.save();
-        await transaction.save();
-      }
+      // Save only if the transaction was successful
+      await account.save();
+      await transaction.save();
 
       console.log(
         `Transaction ${transaction._id} processed: ${transaction.transactionStatus}`,
@@ -78,37 +79,47 @@ const processRecurringTransactions = async () => {
   try {
     let today = new Date();
 
-    // find all recurring transactions
-    const requrringTransactions = await Transaction.find({
+    // Find all recurring transactions
+    const recurringTransactions = await Transaction.find({
       isRecurring: true,
       nextRecurringDate: { $lte: today },
     });
 
-    for (let transaction of requrringTransactions) {
+    for (let transaction of recurringTransactions) {
       let account = await Account.findById(transaction.account);
 
-      // check account has enough balance
-      if (
-        transaction.transactionType === 'expense' &&
-        (!account || account.balance < transaction.amount)
-      ) {
-        console.log(
-          `Skipping transaction ${transaction._id} - Insufficient balance`,
+      // Budget limit check for expense transactions
+      if (transaction.transactionType === 'expense') {
+        const budgetLimit = await trackBudgetLimit(
+          transaction.user,
+          transaction.category,
+          transaction.amount,
         );
-        continue;
-      }
 
-      // handle transactions
-      if (transaction.transactionType === 'income') {
+        if (budgetLimit.exceeded === true) {
+          console.log(
+            `Skipping transaction ${transaction._id} - Budget limit exceeded`,
+          );
+          continue;
+        }
+
+        // Check if the account has enough balance
+        if (!account || account.balance < transaction.amount) {
+          console.log(
+            `Skipping transaction ${transaction._id} - Insufficient balance`,
+          );
+          continue;
+        }
+
+        account.balance -= transaction.amount; // Deduct balance only if valid
+      } else if (transaction.transactionType === 'income') {
         account.balance += transaction.amount;
-      } else if (transaction.transactionType === 'expense') {
-        account.balance -= transaction.account;
       }
 
-      // save acc details
+      // Save account details
       await account.save();
 
-      // create new actual transaction
+      // Create a new actual transaction
       await Transaction.create({
         user: transaction.user,
         transactionType: transaction.transactionType,

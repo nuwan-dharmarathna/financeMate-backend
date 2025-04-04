@@ -20,10 +20,10 @@ const processPendingGoals = require('./utils/goalHandler');
 // Route files
 const userRoutes = require('./routes/userRoutes');
 const accountRoutes = require('./routes/accountRoutes');
+const categoryRoutes = require('./routes/categoryRoutes');
 const budgetRoutes = require('./routes/budgetRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
 const goalRoutes = require('./routes/goalRoutes');
-const categoryRoutes = require('./routes/categoryRoutes');
 
 const admin = require('firebase-admin');
 // Decode Base64 string
@@ -59,7 +59,7 @@ if (process.env.NODE_ENV === 'development') {
 
 // Limit requests from same API
 const limiter = rateLimit({
-  max: 100,
+  max: 300,
   windowMs: 60 * 60 * 1000,
   message: 'Too many requests from this IP, please try again in an hour!',
 });
@@ -102,10 +102,10 @@ app.get('/', (req, res) => {
 
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/accounts', accountRoutes);
+app.use('/api/v1/categories', categoryRoutes);
 app.use('/api/v1/budgets', budgetRoutes);
 app.use('/api/v1/transactions', transactionRoutes);
 app.use('/api/v1/goals', goalRoutes);
-app.use('/api/v1/categories', categoryRoutes);
 
 app.all('*', (req, res, next) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));
