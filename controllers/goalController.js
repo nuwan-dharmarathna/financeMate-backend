@@ -6,6 +6,7 @@ const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');
 
 const ApiFeatures = require('../utils/apiFeatures');
+const Category = require('../models/categoryModel');
 
 exports.getAllGoals = catchAsync(async (req, res, next) => {
   // Base filter to ensure only logged-in user's goals are fetched
@@ -96,6 +97,49 @@ exports.createGoal = catchAsync(async (req, res, next) => {
       return next(new AppError('Invalid contribution interval', 400));
   }
 
+  // fetch the goals for the user
+  const existingGoals = await Goal.find({ user: req.user.id });
+
+  let categoryId;
+  if (existingGoals.length > 1) {
+    // fetch the category using slug
+    const existingCategory = await Category.findOne({
+      user: req.user.id,
+      slug: 'ongoing-goals',
+    });
+
+    if (!existingCategory) {
+      return next(new AppError('No category found with that ID', 404));
+    }
+
+    categoryId = existingCategory.id;
+  } else {
+    // create a new category for the ongoing goals
+    const newCategory = await Category.create({
+      name: 'Ongoing Goals',
+      type: 'income',
+      user: req.user.id,
+    });
+
+    if (!newCategory) {
+      return next(new AppError('Failed to create category', 400));
+    }
+
+    categoryId = newCategory.id;
+  }
+
+  // create a transaction for the contribution
+  await Transaction.create({
+    user: req.user.id,
+    account: accountDoc.id,
+    amount: contributionAmount,
+    category: categoryId,
+    transactionType: 'expense',
+    date: new Date(),
+    description: `Contribution for goal: ${name}`,
+    transactionStatus: 'completed',
+  });
+
   const newGoal = await Goal.create({
     user: req.user.id,
     name,
@@ -112,17 +156,6 @@ exports.createGoal = catchAsync(async (req, res, next) => {
 
   // save the account
   await accountDoc.save();
-
-  // create a transaction for the contribution
-  await Transaction.create({
-    user: req.user.id,
-    account: accountDoc.id,
-    amount: contributionAmount,
-    category: 'Savings',
-    transactionType: 'expense',
-    description: `Contribution for goal: ${name}`,
-    transactionStatus: 'completed',
-  });
 
   res.status(201).json({
     status: 'success',
@@ -218,12 +251,12 @@ exports.deleteGoal = catchAsync(async (req, res, next) => {
     // Revert the balance
     let revertAmount = existingGoal.totalAmount - existingGoal.balance;
 
-    existingAccount.balance += revertAmount;
+    existingAccount.remainingBalance += revertAmount;
 
     await existingAccount.save();
   }
 
-  await existingGoal.remove();
+  await Goal.findByIdAndDelete(req.params.id);
 
   res.status(204).json({
     status: 'success',
