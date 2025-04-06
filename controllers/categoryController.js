@@ -3,12 +3,24 @@ const Category = require('../models/categoryModel');
 const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');
 
+const ApiFeatures = require('../utils/apiFeatures');
+
 const slugify = require('slugify');
 
 exports.getAllCategories = catchAsync(async (req, res, next) => {
-  const categories = await Category.find({
-    user: req.user.id,
-  });
+  let filter = { user: req.user.id };
+
+  if (req.query.type) {
+    filter = { ...filter, type: req.query.type };
+  }
+
+  const features = new ApiFeatures(Category.find(filter), req.query)
+    .filter()
+    .sort()
+    .limitFields()
+    .paginate();
+
+  const categories = await features.query;
 
   res.status(200).json({
     status: 'success',
