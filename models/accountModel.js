@@ -11,7 +11,6 @@ const accountSchema = new mongoose.Schema(
     },
     slug: {
       type: String,
-      unique: true,
     },
     user: {
       type: mongoose.Schema.ObjectId,
