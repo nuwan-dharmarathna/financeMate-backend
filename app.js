@@ -27,14 +27,6 @@ const transactionRoutes = require('./routes/transactionRoutes');
 const goalRoutes = require('./routes/goalRoutes');
 
 const admin = require('firebase-admin');
-// Decode Base64 string
-// const firebaseCredentials = JSON.parse(
-//   Buffer.from(process.env.FIREBASE_CREDENTIALS, 'base64').toString(),
-// );
-
-// admin.initializeApp({
-//   credential: admin.credential.cert(firebaseCredentials),
-// });
 
 const serviceAccount = JSON.parse(
   fs.readFileSync(

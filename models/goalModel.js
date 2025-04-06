@@ -69,8 +69,8 @@ const goalSchema = new mongoose.Schema(
 
 goalSchema.pre(/^find/, function (next) {
   this.populate({
-    path: 'user',
-    select: 'firebaseUID',
+    path: 'account',
+    select: 'name',
   });
   next();
 });

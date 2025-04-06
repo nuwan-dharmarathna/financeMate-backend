@@ -3,10 +3,24 @@ const Category = require('../models/categoryModel');
 const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');
 
+const ApiFeatures = require('../utils/apiFeatures');
+
+const slugify = require('slugify');
+
 exports.getAllCategories = catchAsync(async (req, res, next) => {
-  const categories = await Category.find({
-    user: req.user.id,
-  });
+  let filter = { user: req.user.id };
+
+  if (req.query.type) {
+    filter = { ...filter, type: req.query.type };
+  }
+
+  const features = new ApiFeatures(Category.find(filter), req.query)
+    .filter()
+    .sort()
+    .limitFields()
+    .paginate();
+
+  const categories = await features.query;
 
   res.status(200).json({
     status: 'success',
@@ -18,7 +32,10 @@ exports.getAllCategories = catchAsync(async (req, res, next) => {
 });
 
 exports.getCategory = catchAsync(async (req, res, next) => {
-  const category = await Category.findById(req.params.id);
+  const category = await Category.findOne({
+    user: req.user.id,
+    _id: req.params.id,
+  });
 
   if (!category) {
     return next(new AppError('No category found with that ID', 404));
@@ -34,6 +51,19 @@ exports.getCategory = catchAsync(async (req, res, next) => {
 
 exports.createCategory = catchAsync(async (req, res, next) => {
   const { name, type } = req.body;
+
+  // check the category name is already exist
+
+  const slug = slugify(name, { lower: true });
+
+  const category = await Category.findOne({
+    user: req.user.id,
+    slug: slug,
+  });
+
+  if (category) {
+    return next(new AppError('Category name already exist', 400));
+  }
 
   const newCategory = await Category.create({
     name,
@@ -57,6 +87,21 @@ exports.updateCategory = catchAsync(async (req, res, next) => {
 
   if (!existingCategoey) {
     return next(new AppError('No Category found that ID', 404));
+  }
+
+  // check the category name is changed
+  if (name && name !== existingCategoey.name) {
+    // check the slug is already exist
+    const slug = slugify(name, { lower: true });
+
+    const category = await Category.findOne({
+      user: req.user.id,
+      slug: slug,
+    });
+
+    if (category) {
+      return next(new AppError('Category name already exist', 400));
+    }
   }
 
   // update category

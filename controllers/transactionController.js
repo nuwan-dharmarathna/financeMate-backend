@@ -62,6 +62,8 @@ exports.createTransaction = catchAsync(async (req, res, next) => {
     recurringInterval,
   } = req.body;
 
+  console.log(req.body);
+
   //  Get the account or Default Account
   let accountDoc;
 
@@ -122,6 +124,9 @@ exports.createTransaction = catchAsync(async (req, res, next) => {
         } else {
           return next(new AppError(budgetLimit.alert, 400));
         }
+      } else {
+        // reduce the account remaining balance
+        accountDoc.remainingBalance -= amount;
       }
     } else if (transactionType === 'income') {
       accountDoc.remainingBalance += amount;

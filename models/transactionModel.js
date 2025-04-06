@@ -47,7 +47,7 @@ const transactionSchema = new mongoose.Schema(
     },
     recurringInterval: {
       type: String,
-      enum: ['daily', 'weekly', 'monthly', 'yearly'],
+      enum: ['daily', 'weekly', 'monthly', 'yearly', ''],
     },
     nextRecurringDate: {
       type: Date,
@@ -75,18 +75,11 @@ const transactionSchema = new mongoose.Schema(
 );
 
 transactionSchema.pre(/^find/, function (next) {
-  this.populate({
-    path: 'user',
-    select: 'firebaseUID',
-  });
-  next();
-});
-
-transactionSchema.pre(/^find/, function (next) {
-  this.populate({
-    path: 'account',
-    select: 'slug',
-  });
+  this.populate([
+    { path: 'user', select: 'firebaseUID' },
+    { path: 'category', select: 'name' },
+    { path: 'account', select: 'slug' },
+  ]);
   next();
 });
 
