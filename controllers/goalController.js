@@ -101,7 +101,7 @@ exports.createGoal = catchAsync(async (req, res, next) => {
   const existingGoals = await Goal.find({ user: req.user.id });
 
   let categoryId;
-  if (existingGoals.length > 1) {
+  if (existingGoals.length >= 1) {
     // fetch the category using slug
     const existingCategory = await Category.findOne({
       user: req.user.id,
