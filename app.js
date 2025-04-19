@@ -25,6 +25,7 @@ const categoryRoutes = require('./routes/categoryRoutes');
 const budgetRoutes = require('./routes/budgetRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
 const goalRoutes = require('./routes/goalRoutes');
+const reportRoutes = require('./routes/reportRoutes');
 
 const admin = require('firebase-admin');
 
@@ -110,6 +111,7 @@ app.use('/api/v1/categories', categoryRoutes);
 app.use('/api/v1/budgets', budgetRoutes);
 app.use('/api/v1/transactions', transactionRoutes);
 app.use('/api/v1/goals', goalRoutes);
+app.use('/api/v1/reports', reportRoutes);
 
 app.all('*', (req, res, next) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));
