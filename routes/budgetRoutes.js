@@ -13,6 +13,10 @@ router
   .post(budgetController.createBudget);
 
 router
+  .route('/category/:categoryId')
+  .get(budgetController.getBudgetsByCategory);
+
+router
   .route('/:id')
   .get(budgetController.getBudget)
   .patch(budgetController.updateBudget)

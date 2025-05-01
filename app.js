@@ -43,7 +43,7 @@ admin.initializeApp({
 const app = express();
 
 // Start processing transactions
-cron.schedule('* * * * *', async () => {
+cron.schedule('0 0 * * *', async () => {
   console.log('Running cron job to process transactions...');
   try {
     await processPendingTransactions();

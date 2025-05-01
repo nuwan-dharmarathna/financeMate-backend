@@ -45,6 +45,29 @@ exports.getBudget = catchAsync(async (req, res, next) => {
   });
 });
 
+exports.getBudgetsByCategory = catchAsync(async (req, res, next) => {
+  logger.info('Fetching budgets by category', {
+    userId: req.user.id,
+    categoryId: req.params.categoryId,
+  });
+
+  const budgets = await Budget.findOne({
+    user: req.user.id,
+    category: req.params.categoryId,
+  });
+
+  if (!budgets) {
+    return next(new AppError('No budgets found for this category', 404));
+  }
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      budgets,
+    },
+  });
+});
+
 exports.createBudget = catchAsync(async (req, res, next) => {
   logger.info('Creating a new budget', {
     userId: req.user.id,

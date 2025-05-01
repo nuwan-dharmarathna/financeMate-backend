@@ -1,31 +1,28 @@
 const mongoose = require('mongoose');
 
-const User = require('./userModel');
-const Category = require('./categoryModel');
-
 const budgetSchema = new mongoose.Schema(
   {
     limit: {
       type: Number,
-      required: [true, 'A budget must have an limit'],
+      required: [true, 'A budget must have a limit'],
     },
     remainingLimit: {
       type: Number,
-      min: [0, 'Balance must be greater than 0'],
+      min: [0, 'Remaining limit must be greater than or equal to 0'],
     },
     category: {
       type: mongoose.Schema.ObjectId,
       ref: 'Category',
-      required: [true, 'A budget must have a category'],
+      required: [true, 'A budget must be assigned to a category'],
     },
     user: {
       type: mongoose.Schema.ObjectId,
       ref: 'User',
-      required: [true, 'Account must belong to a user'],
+      required: [true, 'A budget must belong to a user'],
     },
     createdAt: {
       type: Date,
-      default: Date.now(),
+      default: Date.now,
     },
     updatedAt: {
       type: Date,
@@ -37,6 +34,10 @@ const budgetSchema = new mongoose.Schema(
   },
 );
 
+// Compound index: ensure one budget per user per category
+budgetSchema.index({ user: 1, category: 1 }, { unique: true });
+
+// Auto-populate category slug on find
 budgetSchema.pre(/^find/, function (next) {
   this.populate({
     path: 'category',
