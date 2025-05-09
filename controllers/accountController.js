@@ -234,8 +234,6 @@ exports.getTransactionsOfAccount = catchAsync(async (req, res, next) => {
     user: req.user.id,
   });
 
-  console.log(transactions);
-
   if (!transactions) {
     return next(new AppError('No transactions found with that ID', 404));
   }
