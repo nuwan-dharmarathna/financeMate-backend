@@ -114,55 +114,56 @@ exports.signIn = catchAsync(async (req, res, next) => {
 });
 
 exports.signInWithGoogle = catchAsync(async (req, res, next) => {
-  const { uid } = req.body;
-
-  console.log(`idToken received: ${uid}`);
-
-  if (!uid) {
-    return res.status(400).json({ message: 'Missing Google ID Token' });
-  }
+  const { uid, name, email, googlePhotoURL } = req.body;
 
   try {
-    // ✅ Verify Firebase ID Token
-    // const decodedToken = await admin.auth().verifyIdToken(idToken);
-    // console.log(`Decoded Token:`, decodedToken);
+    const user = await User.findOne({
+      email: email,
+    });
 
-    const userRecord = await admin.auth().getUserByProviderUid(uid);
+    if (user) {
+      const token = signToken(user._id);
 
-    // ✅ Check if user exists in database
-    let user = await User.findOne({ firebaseUID: uid });
+      res.cookie('authToken', token, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'None',
+        maxAge: 2 * 60 * 60 * 1000, // Expires in 2 hours
+      });
 
-    if (!user) {
-      user = new User({
+      return res.status(200).json({
+        status: 'success',
+        token,
+        user,
+      });
+    } else {
+      const newUser = await User.create({
         firebaseUID: uid,
-        email: userRecord.email,
-        displayName: userRecord.email.split('@')[0],
+        email: email,
+        displayName: name,
+        image: googlePhotoURL,
         provider: 'google',
       });
 
-      await user.save();
+      await newUser.save();
+
+      const token = signToken(newUser._id);
+
+      res.cookie('authToken', token, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'None',
+        maxAge: 2 * 60 * 60 * 1000, // Expires in 2 hours
+      });
+
+      return res.status(200).json({
+        status: 'success',
+        token,
+        user: newUser,
+      });
     }
-
-    const token = signToken(user._id);
-
-    res.cookie('authToken', token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'None',
-      maxAge: 2 * 60 * 60 * 1000, // Expires in 2 hours
-    });
-
-    return res.status(200).json({
-      status: 'success',
-      token,
-      user,
-    });
   } catch (error) {
-    console.error('Error verifying ID token:', error.message);
-    return res.status(401).json({
-      status: 'error',
-      message: 'Invalid Google ID Token',
-    });
+    next(error);
   }
 });
 
