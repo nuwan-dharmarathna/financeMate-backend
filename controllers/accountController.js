@@ -226,3 +226,25 @@ exports.deleteAccount = catchAsync(async (req, res, next) => {
     data: null,
   });
 });
+
+// get transactions of the account
+exports.getTransactionsOfAccount = catchAsync(async (req, res, next) => {
+  const transactions = await Transaction.find({
+    account: req.params.id,
+    user: req.user.id,
+  });
+
+  console.log(transactions);
+
+  if (!transactions) {
+    return next(new AppError('No transactions found with that ID', 404));
+  }
+
+  res.status(200).json({
+    status: 'success',
+    results: transactions.length,
+    data: {
+      transactions,
+    },
+  });
+});

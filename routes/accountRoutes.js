@@ -18,4 +18,9 @@ router
   .patch(accountController.updateAccount)
   .delete(accountController.deleteAccount);
 
+// get transactions of the account
+router
+  .route('/:id/transactions')
+  .get(accountController.getTransactionsOfAccount);
+
 module.exports = router;
